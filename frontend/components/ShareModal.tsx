@@ -61,19 +61,32 @@ export default function ShareModal({ opportunityId, opportunityTitle, isOpen, on
   const handleShareToCommunity = async () => {
     if (!selectedCommunity) return;
     setSharing(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSharing(false); return; }
 
-    await supabase.from("community_posts").insert({
-      community_id: selectedCommunity,
-      opportunity_id: opportunityId,
-      shared_by: user.id,
-      message: message || null,
-    });
+      const { data, error } = await supabase.from("community_posts").insert({
+        community_id: selectedCommunity,
+        opportunity_id: opportunityId,
+        shared_by: user.id,
+        message: message || null,
+      }).select();
 
-    setShared(true);
-    setTimeout(() => { setShared(false); onClose(); }, 1500);
-    setSharing(false);
+      if (error) {
+        console.error("Share to community failed:", error);
+        alert(`Failed to share: ${error.message}`);
+        setSharing(false);
+        return;
+      }
+
+      console.log("Successfully shared to community:", data);
+      setShared(true);
+      setTimeout(() => { setShared(false); onClose(); }, 1500);
+    } catch (err) {
+      console.error("Share error:", err);
+    } finally {
+      setSharing(false);
+    }
   };
 
   const handleCopyLink = () => {
