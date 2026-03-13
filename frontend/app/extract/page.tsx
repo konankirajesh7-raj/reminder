@@ -73,10 +73,27 @@ export default function ExtractPage() {
   const [user, setUser] = useState<Record<string, unknown> | null>(null);
   const [userProfile, setUserProfile] = useState<{ branch: string; cgpa: number | null; age: number | null } | null>(null);
   const [inputText, setInputText] = useState("");
-  const [extractedData, setExtractedData] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  interface ExtractedData {
+    company?: string;
+    role?: string;
+    type?: string;
+    branch_eligible?: string;
+    cgpa_required?: number | null;
+    deadline?: string | null;
+    location?: string;
+    stipend?: string;
+    apply_link?: string | null;
+    raw_text?: string;
+    days_left: number | null;
+    urgency: string;
+    required_skills?: string | null;
+    isDuplicate?: boolean;
+    isSpam?: boolean;
+    spamReasons?: string[];
+    is_applied?: boolean;
+  }
+
+  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);

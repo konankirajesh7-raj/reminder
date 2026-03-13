@@ -75,7 +75,6 @@ export default function CommunityDetailPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMembers, setShowMembers] = useState(false);
-  const [isMember, setIsMember] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -130,83 +129,102 @@ export default function CommunityDetailPage() {
       return;
     }
 
-    setIsMember(true);
     setIsAdmin(membership.role === "admin");
     await fetchCommunityData();
   };
 
   const fetchCommunityData = async () => {
-    // Fetch community info
-    const { data: comm } = await supabase
-      .from("communities")
-      .select("id, name, description, member_count, created_at, created_by")
-      .eq("id", communityId)
-      .single();
-    if (comm) setCommunity(comm as CommunityInfo);
+    try {
+      // Fetch community info
+      const { data: comm, error: commError } = await supabase
+        .from("communities")
+        .select("id, name, description, member_count, created_at, created_by")
+        .eq("id", communityId)
+        .single();
+      
+      if (commError) throw commError;
+      if (comm) setCommunity(comm as CommunityInfo);
 
-    // Step 1: Fetch shared posts with opportunities (no user join — FK goes to auth.users)
-    const { data: postsData } = await supabase
-      .from("community_posts")
-      .select("*, opportunities(*)")
-      .eq("community_id", communityId)
-      .order("created_at", { ascending: false });
+      // Step 1: Fetch shared posts with opportunities
+      const { data: postsData, error: postsError } = await supabase
+        .from("community_posts")
+        .select("*, opportunities(*)")
+        .eq("community_id", communityId)
+        .order("created_at", { ascending: false });
 
-    if (postsData && postsData.length > 0) {
-      // Step 2: Get unique user IDs from shared_by and fetch their profiles from public.users
-      const userIds = Array.from(new Set(postsData.map((p: Record<string, unknown>) => p.shared_by as string)));
-      const { data: usersData } = await supabase
-        .from("users")
-        .select("id, name, college")
-        .in("id", userIds);
+      if (postsError) throw postsError;
 
-      const usersMap: Record<string, { name: string; college: string }> = {};
-      if (usersData) {
-        for (const u of usersData) {
-          usersMap[u.id] = { name: u.name, college: u.college };
+      if (postsData && postsData.length > 0) {
+        // Step 2: Get unique user IDs from shared_by
+        const userIds = Array.from(new Set(postsData.map((p: Record<string, unknown>) => p.shared_by as string).filter(Boolean)));
+        
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from("users")
+            .select("id, name, college")
+            .in("id", userIds);
+
+          const usersMap: Record<string, { name: string; college: string }> = {};
+          if (usersData) {
+            for (const u of usersData) {
+              usersMap[u.id] = { name: u.name, college: u.college };
+            }
+          }
+
+          // Attach user info to each post
+          const enrichedPosts = postsData.map((p: Record<string, unknown>) => ({
+            ...p,
+            users: usersMap[p.shared_by as string] || { name: "Unknown", college: "" },
+          }));
+          setPosts(enrichedPosts as unknown as CommunityPost[]);
+        } else {
+          setPosts(postsData as unknown as CommunityPost[]);
         }
+      } else {
+        setPosts([]);
       }
 
-      // Attach user info to each post
-      const enrichedPosts = postsData.map((p: Record<string, unknown>) => ({
-        ...p,
-        users: usersMap[p.shared_by as string] || { name: "Unknown", college: "" },
-      }));
-      setPosts(enrichedPosts as unknown as CommunityPost[]);
-    } else {
-      setPosts([]);
-    }
+      // Fetch members
+      const { data: membershipsData, error: memberError } = await supabase
+        .from("community_members")
+        .select("user_id, role")
+        .eq("community_id", communityId);
 
-    // Fetch members — community_members.user_id also points to auth.users, so same fix
-    const { data: membershipsData } = await supabase
-      .from("community_members")
-      .select("user_id, role")
-      .eq("community_id", communityId);
+      if (memberError) throw memberError;
 
-    if (membershipsData && membershipsData.length > 0) {
-      const memberUserIds = membershipsData.map((m: Record<string, unknown>) => m.user_id as string);
-      const { data: memberUsersData } = await supabase
-        .from("users")
-        .select("id, name, college, branch")
-        .in("id", memberUserIds);
+      if (membershipsData && membershipsData.length > 0) {
+        const memberUserIds = membershipsData.map((m: Record<string, unknown>) => m.user_id as string).filter(Boolean);
+        
+        if (memberUserIds.length > 0) {
+          const { data: memberUsersData } = await supabase
+            .from("users")
+            .select("id, name, college, branch")
+            .in("id", memberUserIds);
 
-      const memberUsersMap: Record<string, { name: string; college: string; branch: string }> = {};
-      if (memberUsersData) {
-        for (const u of memberUsersData) {
-          memberUsersMap[u.id] = { name: u.name, college: u.college, branch: u.branch };
+          const memberUsersMap: Record<string, { name: string; college: string; branch: string }> = {};
+          if (memberUsersData) {
+            for (const u of memberUsersData) {
+              memberUsersMap[u.id] = { name: u.name, college: u.college, branch: u.branch };
+            }
+          }
+
+          const enrichedMembers = membershipsData.map((m: Record<string, unknown>) => ({
+            user_id: m.user_id as string,
+            role: m.role as string,
+            users: memberUsersMap[m.user_id as string] || { name: "Unknown", college: "", branch: "" },
+          }));
+          setMembers(enrichedMembers as Member[]);
+        } else {
+          setMembers([]);
         }
+      } else {
+        setMembers([]);
       }
-
-      const enrichedMembers = membershipsData.map((m: Record<string, unknown>) => ({
-        user_id: m.user_id as string,
-        role: m.role as string,
-        users: memberUsersMap[m.user_id as string] || { name: "Unknown", college: "", branch: "" },
-      }));
-      setMembers(enrichedMembers as Member[]);
-    } else {
-      setMembers([]);
+    } catch (err) {
+      console.error("Error fetching community data:", err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleJoinFromDetail = async () => {

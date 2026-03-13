@@ -11,7 +11,6 @@ import {
   LogOut,
   LayoutDashboard,
   ChevronDown,
-  Users,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 

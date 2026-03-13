@@ -83,25 +83,30 @@ export default function CommunityPage() {
 
       if (data && data.length > 0) {
         // Step 2: Look up user profiles from public.users table
-        const userIds = Array.from(new Set(data.map((o: Record<string, unknown>) => o.user_id as string)));
-        const { data: usersData } = await supabase
-          .from("users")
-          .select("id, name, college, branch")
-          .in("id", userIds);
+        const userIds = Array.from(new Set(data.map((o: Record<string, unknown>) => o.user_id as string).filter(Boolean)));
+        
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from("users")
+            .select("id, name, college, branch")
+            .in("id", userIds);
 
-        const usersMap: Record<string, { name: string; college: string; branch: string }> = {};
-        if (usersData) {
-          for (const u of usersData) {
-            usersMap[u.id] = { name: u.name, college: u.college, branch: u.branch };
+          const usersMap: Record<string, { name: string; college: string; branch: string }> = {};
+          if (usersData) {
+            for (const u of usersData) {
+              usersMap[u.id] = { name: u.name, college: u.college, branch: u.branch };
+            }
           }
-        }
 
-        // Attach user info to each opportunity
-        const enriched = data.map((o: Record<string, unknown>) => ({
-          ...o,
-          users: usersMap[o.user_id as string] || { name: "Anonymous", college: "", branch: "" },
-        }));
-        setOpportunities(enriched as CommunityOpportunity[]);
+          // Attach user info to each opportunity
+          const enriched = data.map((o: Record<string, unknown>) => ({
+            ...o,
+            users: usersMap[o.user_id as string] || { name: "Anonymous", college: "", branch: "" },
+          }));
+          setOpportunities(enriched as CommunityOpportunity[]);
+        } else {
+          setOpportunities(data as CommunityOpportunity[]);
+        }
       } else {
         setOpportunities([]);
       }

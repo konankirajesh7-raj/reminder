@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Share2, X, Users, Copy, MessageCircle, Check, Globe, Shield } from "lucide-react";
+import { Share2, X, Copy, MessageCircle, Check, Globe, Shield } from "lucide-react";
 
 interface Community {
   id: string;
